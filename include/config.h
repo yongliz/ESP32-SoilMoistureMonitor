@@ -36,14 +36,19 @@
 #define SENSOR_POWER_PIN  -1   // -1 表示未使用；启用时接 MOSFET 开关
 
 // ============ 水墨屏 ============
-// 汉朔拆机 DEPG0213RWS800F41（三色 122x250，SSD1680/UC8151D 协议，自定义 SPI 驱动）
-#define EPD_WIDTH      122   // 可视宽
-#define EPD_HEIGHT     250   // 可视高
-#define EPD_BUF_WIDTH  128   // 缓冲宽(8 的倍数)
-#define EPD_CS_PIN     22
-#define EPD_DC_PIN     20
-#define EPD_RST_PIN    21
-#define EPD_BUSY_PIN   4     // BUSY 低电平有效(0=忙)；接 GPIO4
+// 汉朔拆机 SES2213JS0E1 / DEPG0213RWS800F41（三色，UC8151D/IL0373 协议，自定义 SPI 驱动）
+// 物理可视：横向 212 × 纵向 104；控制器原生 RAM：X=104（13 字节/行）× Y=212（212 行）
+// 参考驱动 gitee.com/jetmie/evernote/open/idisplay/web/epd.py + index.html
+#define EPD_WIDTH       212              // 可视宽（横向像素）
+#define EPD_HEIGHT      104              // 可视高（纵向像素）
+#define EPD_NATIVE_W    104              // 控制器原生 X（像素，=13 字节/行）
+#define EPD_NATIVE_H    212              // 控制器原生 Y（像素，=行数）
+#define EPD_BUF_STRIDE  (EPD_NATIVE_W / 8)                // 每行字节数 = 13
+#define EPD_BUF_SIZE    (EPD_NATIVE_W * EPD_NATIVE_H / 8) // 缓冲字节 = 2756
+#define EPD_CS_PIN      22
+#define EPD_DC_PIN      20
+#define EPD_RST_PIN     21
+#define EPD_BUSY_PIN    4               // BUSY 低电平有效(0=忙)；接 GPIO4
 
 // ============ 其他 ============
 #define DISPLAY_TITLE  "花卉湿度监测"

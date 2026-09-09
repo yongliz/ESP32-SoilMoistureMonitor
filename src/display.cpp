@@ -6,12 +6,11 @@
 
 namespace display {
 
-// 颜色枚举
 enum : uint8_t { C_WHITE, C_RED, C_BLACK };
 
 // 帧缓冲：black 1=白 0=黑；red 1=红 0=无（发送时对 red 取反）
-static uint8_t g_black[EPD_BUF_WIDTH / 8 * EPD_HEIGHT];
-static uint8_t g_red[EPD_BUF_WIDTH / 8 * EPD_HEIGHT];
+static uint8_t g_black[EPD_BUF_SIZE];
+static uint8_t g_red[EPD_BUF_SIZE];
 
 // ---------- 底层 SPI ----------
 static void writeCmd(uint8_t cmd) {
@@ -40,14 +39,20 @@ static void clearBuffer() {
     memset(g_black, 0xFF, sizeof(g_black));  // 全白
     memset(g_red, 0x00, sizeof(g_red));      // 无红
 }
-static void drawPixel(int16_t x, int16_t y, uint8_t color) {
-    if (x < 0 || x >= EPD_WIDTH || y < 0 || y >= EPD_HEIGHT) return;
-    uint16_t idx = (uint16_t)y * (EPD_BUF_WIDTH / 8) + (x >> 3);
-    uint8_t mask = 0x80 >> (x & 7);
+
+// 物理(横向 px, 纵向 py) → 控制器原生 RAM。
+// 控制器 X 轴 = 物理纵向(垂直翻转)，控制器 Y 轴 = 物理横向。参考 index.html sendToEink 的字节轨迹。
+static void drawPixel(int16_t px, int16_t py, uint8_t color) {
+    if (px < 0 || px >= EPD_WIDTH || py < 0 || py >= EPD_HEIGHT) return;
+    uint16_t xn = (uint16_t)(EPD_HEIGHT - 1 - py);   // 0..103
+    uint16_t yn = (uint16_t)px;                       // 0..211
+    uint16_t idx = yn * EPD_BUF_STRIDE + (xn >> 3);
+    uint8_t  mask = 0x80 >> (xn & 7);
     if (color == C_BLACK) { g_black[idx] &= ~mask; g_red[idx] &= ~mask; }
     else if (color == C_RED) { g_red[idx] |= mask; g_black[idx] |= mask; }
     else { g_black[idx] |= mask; g_red[idx] &= ~mask; }  // 白
 }
+
 static void drawGlyph(const uint8_t* g, int16_t x, int16_t y, uint8_t w, uint8_t h, uint8_t color) {
     uint8_t wb = (w + 7) / 8;
     for (uint8_t row = 0; row < h; row++) {
@@ -131,14 +136,14 @@ void begin() {
     SPI.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE0));
 
     reset();
-    writeCmd(0x00); writeData(0x0F);              // Panel Setting: OTP LUT, BWR, 上扫
-    writeCmd(0x44); writeData(0x00); writeData((EPD_BUF_WIDTH >> 3) - 1);  // X 0..15
+    writeCmd(0x00); writeData(0x0F);                    // Panel Setting: OTP LUT, BWR
+    writeCmd(0x44); writeData(0x00); writeData(EPD_BUF_STRIDE - 1);  // X 0..12（13 字节=104px）
     writeCmd(0x45); writeData(0x00); writeData(0x00);
-    writeData((EPD_HEIGHT - 1) & 0xFF); writeData(((EPD_HEIGHT - 1) >> 8) & 0x01);  // Y 0..249
-    writeCmd(0x4E); writeData(0x00);              // X 指针
-    writeCmd(0x4F); writeData(0x00); writeData(0x00);  // Y 指针
+    writeData((EPD_NATIVE_H - 1) & 0xFF); writeData(((EPD_NATIVE_H - 1) >> 8) & 0x01);  // Y 0..211
+    writeCmd(0x4E); writeData(0x00);
+    writeCmd(0x4F); writeData(0x00); writeData(0x00);
     writeCmd(0x50); writeData(0x11); writeData(0x07);  // VCOM 与数据间隔
-    writeCmd(0x04);                               // Power ON
+    writeCmd(0x04);                                     // Power ON
     waitBusy();
 }
 
@@ -166,20 +171,19 @@ static void sendToPanel() {
 void render(const sensor::SoilReading &r, float vbat, bool alarm, const char* timeStr) {
     clearBuffer();
 
-    drawTextCentered(DISPLAY_TITLE, 8, C_BLACK);   // 标题
+    // 横向 212×104 布局
+    drawTextCentered(DISPLAY_TITLE, 4, C_BLACK);                       // 标题
 
     char buf[24];
     snprintf(buf, sizeof(buf), "%d%%", (int)(r.moisture + 0.5f));
-    drawAsciiStringScaled(buf, 40, C_BLACK, 2);     // 湿度（2x 大字）
+    drawAsciiStringScaled(buf, 28, C_BLACK, 2);                        // 湿度大字(2x)
 
-    drawTextCentered(alarm ? "需要浇水" : "正常", 92, alarm ? C_RED : C_BLACK);
+    drawTextCentered(alarm ? "需要浇水" : "正常", 68, alarm ? C_RED : C_BLACK);  // 状态
 
-    fillRect(8, 120, EPD_WIDTH - 16, 1, C_BLACK);   // 分隔线
-
-    drawText(timeStr, 8, 132, C_BLACK);             // 时间
+    drawText(timeStr, 4, 88, C_BLACK);                                 // 时间(左)
 
     snprintf(buf, sizeof(buf), "%.2fV", vbat);
-    drawText(buf, 8, 154, C_BLACK);                 // 电压
+    drawText(buf, EPD_WIDTH - 4 - textWidth(buf), 88, C_BLACK);        // 电压(右)
 
     sendToPanel();
 }
