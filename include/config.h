@@ -35,11 +35,15 @@
 // ============ 传感器电源控制(预留) ============
 #define SENSOR_POWER_PIN  -1   // -1 表示未使用；启用时接 MOSFET 开关
 
-// ============ 水墨屏引脚 ============
-#define EPD_CS_PIN    22
-#define EPD_DC_PIN    20
-#define EPD_RST_PIN   21
-#define EPD_BUSY_PIN  -1   // 无 BUSY 引脚用 -1(SPI 轮询)；有则接 GPIO4 并改为 4
+// ============ 水墨屏 ============
+// 汉朔拆机 DEPG0213RWS800F41（三色 122x250，SSD1680/UC8151D 协议，自定义 SPI 驱动）
+#define EPD_WIDTH      122   // 可视宽
+#define EPD_HEIGHT     250   // 可视高
+#define EPD_BUF_WIDTH  128   // 缓冲宽(8 的倍数)
+#define EPD_CS_PIN     22
+#define EPD_DC_PIN     20
+#define EPD_RST_PIN    21
+#define EPD_BUSY_PIN   4     // BUSY 低电平有效(0=忙)；接 GPIO4
 
 // ============ 其他 ============
 #define DISPLAY_TITLE  "花卉湿度监测"
