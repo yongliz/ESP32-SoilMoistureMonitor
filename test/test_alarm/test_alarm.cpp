@@ -6,35 +6,35 @@ void tearDown(void) {}
 
 void test_below_threshold_sets_latch(void) {
     bool latched = false;
-    bool active = alarm::evaluate(20.0f, 30.0f, 10.0f, latched);
+    bool active = alarmctl::evaluate(20.0f, 30.0f, 10.0f, latched);
     TEST_ASSERT_TRUE(latched);
     TEST_ASSERT_TRUE(active);
 }
 
 void test_above_threshold_plus_hysteresis_clears_latch(void) {
     bool latched = true;
-    bool active = alarm::evaluate(45.0f, 30.0f, 10.0f, latched);
+    bool active = alarmctl::evaluate(45.0f, 30.0f, 10.0f, latched);
     TEST_ASSERT_FALSE(latched);
     TEST_ASSERT_FALSE(active);
 }
 
 void test_deadband_keeps_latch_when_latched(void) {
     bool latched = true;
-    bool active = alarm::evaluate(35.0f, 30.0f, 10.0f, latched);
+    bool active = alarmctl::evaluate(35.0f, 30.0f, 10.0f, latched);
     TEST_ASSERT_TRUE(latched);
     TEST_ASSERT_TRUE(active);
 }
 
 void test_deadband_keeps_latch_when_clear(void) {
     bool latched = false;
-    bool active = alarm::evaluate(35.0f, 30.0f, 10.0f, latched);
+    bool active = alarmctl::evaluate(35.0f, 30.0f, 10.0f, latched);
     TEST_ASSERT_FALSE(latched);
     TEST_ASSERT_FALSE(active);
 }
 
 void test_exact_threshold_does_not_trigger(void) {
     bool latched = false;
-    bool active = alarm::evaluate(30.0f, 30.0f, 10.0f, latched);
+    bool active = alarmctl::evaluate(30.0f, 30.0f, 10.0f, latched);
     TEST_ASSERT_FALSE(latched);
     TEST_ASSERT_FALSE(active);
 }

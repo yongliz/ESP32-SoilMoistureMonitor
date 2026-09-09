@@ -1,6 +1,6 @@
 #pragma once
 
-namespace alarm {
+namespace alarmctl {
 
 // 单次采样评估告警锁存状态。
 // moisture:      当前湿度 0-100
@@ -17,4 +17,4 @@ inline bool evaluate(float moisture, float dryThreshold, float hysteresis, bool 
     return latched;
 }
 
-} // namespace alarm
+} // namespace alarmctl
