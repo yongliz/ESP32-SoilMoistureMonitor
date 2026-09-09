@@ -24,8 +24,9 @@
 #define ADC_WET  2800
 
 // ============ ADC 引脚 ============
-#define SOIL_MOISTURE_ADC_PIN  34   // 土壤湿度 AO（ADC1_CH6）
-#define BATTERY_ADC_PIN        35   // 电池分压点（ADC1_CH7）
+// ESP32-S3 ADC1：土壤湿度 AO=GPIO1(ADC1_CH0)，电池分压=GPIO2(ADC1_CH1)
+#define SOIL_MOISTURE_ADC_PIN  1
+#define BATTERY_ADC_PIN        2
 #define ADC_ATTENUATION        ADC_11db
 #define BATTERY_DIVIDER_RATIO  2.0f // 100k/100k 分压比
 
