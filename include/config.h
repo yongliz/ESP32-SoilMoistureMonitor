@@ -45,10 +45,13 @@
 #define EPD_NATIVE_H    212              // 控制器原生 Y（像素，=行数）
 #define EPD_BUF_STRIDE  (EPD_NATIVE_W / 8)                // 每行字节数 = 13
 #define EPD_BUF_SIZE    (EPD_NATIVE_W * EPD_NATIVE_H / 8) // 缓冲字节 = 2756
-#define EPD_CS_PIN      22
-#define EPD_DC_PIN      20
-#define EPD_RST_PIN     21
-#define EPD_BUSY_PIN    4               // BUSY 低电平有效(0=忙)；接 GPIO4
+// ESP32-S3 接线（参考 utils.py S3 分支: EPD(12,11,10,13,14,15) = sck,mosi,cs,dc,rst,busy）
+#define EPD_SCK_PIN     12
+#define EPD_MOSI_PIN    11
+#define EPD_CS_PIN      10
+#define EPD_DC_PIN      13
+#define EPD_RST_PIN     14
+#define EPD_BUSY_PIN    15              // BUSY 低电平有效(0=忙)
 
 // ============ 其他 ============
 #define DISPLAY_TITLE  "花卉湿度监测"

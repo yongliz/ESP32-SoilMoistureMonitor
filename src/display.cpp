@@ -126,14 +126,14 @@ static void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint8_t color) 
 
 // ---------- 面板驱动 ----------
 void begin() {
+    SPI.begin(EPD_SCK_PIN, -1, EPD_MOSI_PIN, -1);   // SCK=12/MOSI=11；MISO 默认 13(随后被 DC 覆盖)，SS 手动
+    SPI.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE0));
+
     pinMode(EPD_CS_PIN, OUTPUT);
-    pinMode(EPD_DC_PIN, OUTPUT);
+    pinMode(EPD_DC_PIN, OUTPUT);      // 13（写-only 屏复用 MISO 脚为 DC）
     pinMode(EPD_RST_PIN, OUTPUT);
     pinMode(EPD_BUSY_PIN, INPUT_PULLUP);
     digitalWrite(EPD_CS_PIN, HIGH);
-
-    SPI.begin();
-    SPI.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE0));
 
     reset();
     writeCmd(0x00); writeData(0x0F);                    // Panel Setting: OTP LUT, BWR
