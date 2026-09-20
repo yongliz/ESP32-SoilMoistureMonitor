@@ -143,7 +143,8 @@ static void drawCircle(int16_t cx, int16_t cy, int16_t r, uint8_t color) {
         else { x--; err += 2 * (y - x) + 1; }
     }
 }
-// 竖向湿度计（温度计样式）：球泡常满，管内液柱高度=湿度%；正常黑、需浇水红
+// 竖向湿度计（温度计样式）：球泡常满，管内液柱高度=湿度%；正常黑、需浇水红。
+// 左侧 0/25/50/75/100% 刻度（主刻度长、副刻度短），整体矩形外框。
 static void drawMoistureGauge(uint8_t moisture, uint8_t color) {
     const int16_t cx = 188;         // 温度计中心 X
     const int16_t yTop = 8;         // 竖管顶部
@@ -151,14 +152,30 @@ static void drawMoistureGauge(uint8_t moisture, uint8_t color) {
     const int16_t liqH = liqBottom - yTop;
     int16_t h = (int16_t)((int32_t)(moisture > 100 ? 100 : moisture) * liqH / 100);
 
-    fillCircle(cx, 86, 10, color);                             // 球泡内芯液体
-    if (h > 0) fillRect(cx - 4, liqBottom - h, 8, h, color);   // 管内液柱
+    // 外框：包围温度计（含刻度）的矩形描边
+    const int16_t fx0 = 174, fy0 = 5, fx1 = 202, fy1 = 101;
+    fillRect(fx0, fy0, fx1 - fx0 + 1, 1, C_BLACK);   // 上边
+    fillRect(fx0, fy1, fx1 - fx0 + 1, 1, C_BLACK);   // 下边
+    fillRect(fx0, fy0, 1, fy1 - fy0 + 1, C_BLACK);   // 左边
+    fillRect(fx1, fy0, 1, fy1 - fy0 + 1, C_BLACK);   // 右边
 
-    drawCircle(cx, 86, 12, C_BLACK);                           // 球泡外圈(2px)
+    // 球泡内芯液体（常满）+ 管内液柱（自下而上，高度=湿度%）
+    fillCircle(cx, 86, 10, color);
+    if (h > 0) fillRect(cx - 4, liqBottom - h, 8, h, color);
+
+    // 温度计描边：球泡外圈 + 竖管左右壁 + 管顶封口
+    drawCircle(cx, 86, 12, C_BLACK);
     drawCircle(cx, 86, 11, C_BLACK);
-    fillRect(cx - 6, yTop, 2, liqH, C_BLACK);                  // 左管壁
-    fillRect(cx + 4, yTop, 2, liqH, C_BLACK);                  // 右管壁
-    fillRect(cx - 6, yTop, 12, 2, C_BLACK);                    // 管顶封口
+    fillRect(cx - 6, yTop, 2, liqH, C_BLACK);        // 左管壁
+    fillRect(cx + 4, yTop, 2, liqH, C_BLACK);        // 右管壁
+    fillRect(cx - 6, yTop, 12, 2, C_BLACK);          // 管顶封口
+
+    // 刻度：i=0→100%(顶)、i=4→0%(底)；主刻度(0/50/100)长6、副刻度(25/75)长3
+    for (int i = 0; i <= 4; i++) {
+        int16_t y = yTop + (int16_t)((int32_t)liqH * i / 4);
+        int16_t len = (i % 2 == 0) ? 6 : 3;
+        fillRect(cx - 6 - len, y, len, 1, C_BLACK);
+    }
 }
 
 // ---------- 面板驱动 ----------
