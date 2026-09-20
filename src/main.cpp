@@ -7,6 +7,7 @@
 #include "power.h"
 #include "network.h"
 #include "wifi_config.h"
+#include "web_config.h"
 #include <esp_sleep.h>
 #include <esp_system.h>
 
@@ -66,10 +67,17 @@ void setup() {
     Serial.printf("[main] 芯片=%s 空闲堆=%u 字节\n",
                   ESP.getChipModel(), (unsigned)ESP.getFreeHeap());
 
-    // 0. 读取 WiFi 凭据（配置门户在后续任务接入）
+    // 0. WiFi 配置检测：首次无配置直接进门户
     String ssid, pass;
-    bool haveCreds = wificfg::load(ssid, pass);
-    if (!haveCreds) Serial.println("[main] 未找到 WiFi 配置");
+    if (!wificfg::load(ssid, pass)) {
+        Serial.println("[main] 首次启动，进入配置门户");
+        if (!webcfg::runPortal(CONFIG_PORTAL_TIMEOUT_SEC)) {
+            Serial.println("[main] 配置超时，进入睡眠");
+            power::begin();
+            power::enterDeepSleep();
+        }
+        ESP.restart();                       // 配置成功 → 重启走正常流程，不返回
+    }
 
     // 1. 采集
     sensor::begin();
@@ -85,16 +93,20 @@ void setup() {
     Serial.printf("[main] 告警判定=%s (锁存=%s)\n",
                   alarmActive ? "需要浇水" : "正常", latched ? "是" : "否");
 
-    // 3. NTP 时间同步（每 N 次唤醒才联网）
+    // 3. NTP 时间同步（每 N 次唤醒；连接失败进门户）
     g_wakeCount++;
     if (g_wakeCount % NTP_SYNC_EVERY_N_WAKES == 0) {
-        if (haveCreds &&
-            network::connect(ssid.c_str(), pass.c_str(), WIFI_CONNECT_TIMEOUT_SEC)) {
-            bool ok = network::syncTime();
-            Serial.printf("[main] 时间同步=%s\n", ok ? "成功" : "失败");
-        } else {
-            Serial.println("[main] WiFi 连接失败或未配置，本次不更新时间");
+        if (!network::connect(ssid.c_str(), pass.c_str(), WIFI_CONNECT_TIMEOUT_SEC)) {
+            Serial.println("[main] WiFi 连接失败，进入配置门户");
+            if (!webcfg::runPortal(CONFIG_PORTAL_TIMEOUT_SEC)) {
+                Serial.println("[main] 配置超时，进入睡眠");
+                power::begin();
+                power::enterDeepSleep();
+            }
+            ESP.restart();                   // 不返回
         }
+        bool ok = network::syncTime();
+        Serial.printf("[main] 时间同步=%s\n", ok ? "成功" : "失败");
         network::disconnect();
     } else {
         Serial.println("[main] 本次跳过 NTP（非同步周期）");
