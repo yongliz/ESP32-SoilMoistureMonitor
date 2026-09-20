@@ -33,7 +33,7 @@
 | 告警锁存 | 湿度 < 阈值触发告警；回升超过「阈值 + 回差」才清除，避免临界值反复告警 |
 | 水墨屏显示 | 本地显示标题、湿度百分比、状态、采样时间、电池电压；告警态红色显示 |
 | 深度睡眠 | RTC 定时唤醒（默认 2 小时），休眠期 CPU/WiFi 关闭；告警标记存 `RTC_DATA_ATTR` 掉电不丢 |
-| WiFi + NTP 时间同步 | 联网校时，失败跳过不阻塞主流程 |
+| WiFi 网页配置 + NTP 时间同步 | WiFi 凭据通过 AP 网页门户配置并存入 NVS flash；联网校时，失败跳过不阻塞主流程 |
 | 串口调试输出 | 输出 ADC 原始值、湿度、唤醒次数等，便于校准排障 |
 
 ### 暂缓实现（需求文档已规划，代码未实现）
@@ -103,14 +103,16 @@
 - 一块 ESP32-S3 开发板 + 上述硬件
 - USB 数据线
 
-### 2. 配置 WiFi
+### 2. 配置 WiFi（首次使用）
 
-编辑 [include/config.h](include/config.h)：
+WiFi 凭据不再硬编码，首次烧录后设备会进入 AP 配置门户：
 
-```cpp
-#define WIFI_SSID       "你的WiFi名"
-#define WIFI_PASSWORD   "你的WiFi密码"
-```
+1. 上电后设备自动开启热点 **`SoilMoisture-Setup`**（无密码）。
+2. 手机连接该热点，浏览器会弹出配置页（访问任意网页均可触发）。
+3. 填入你的 WiFi 名称与密码，点击「保存并连接」。
+4. 验证通过后设备自动重启并进入正常工作流程；配置保存在 ESP32 的 NVS flash 中，掉电不丢。
+
+> 若 WiFi 连接失败（如路由器离线/换密码），设备下次唤醒会重新进入配置门户；门户无操作 5 分钟（`CONFIG_PORTAL_TIMEOUT_SEC`）后自动进入深度睡眠。
 
 ### 3. 编译
 
@@ -146,11 +148,12 @@ pio device monitor -b 115200
 
 ## 配置参数
 
-所有可调参数集中在 [include/config.h](include/config.h)，修改后重新烧录即可，无需改动业务逻辑。
+除 WiFi 凭据（通过 AP 门户配置）外，其余可调参数集中在 [include/config.h](include/config.h)，修改后重新烧录即可，无需改动业务逻辑。
 
 | 宏 | 默认值 | 说明 |
 |---|---|---|
-| `WIFI_SSID` / `WIFI_PASSWORD` | `"YOUR_SSID"` / `"YOUR_PASSWORD"` | WiFi 账号密码 |
+| `CONFIG_AP_SSID` | `"SoilMoisture-Setup"` | 配置门户 AP 名称 |
+| `CONFIG_PORTAL_TIMEOUT_SEC` | `300` | 门户无操作超时（秒） |
 | `WIFI_CONNECT_TIMEOUT_SEC` | `10` | WiFi 连接超时（秒），失败直接休眠不阻塞 |
 | `NTP_SERVER` | `"pool.ntp.org"` | NTP 服务器 |
 | `TZ_OFFSET_SEC` | `8 * 3600` | 时区偏移（UTC+8 北京时间） |
@@ -165,7 +168,6 @@ pio device monitor -b 115200
 | `ADC_ATTENUATION` | `ADC_11db` | ADC 衰减 |
 | `BATTERY_DIVIDER_RATIO` | `2.0f` | 电池分压比（100k/100k） |
 | `SENSOR_POWER_PIN` | `-1` | 传感器电源控制脚（`-1`=未用；接 MOSFET 开关可省电） |
-| `DISPLAY_TITLE` | `"花卉湿度监测"` | 屏上标题 |
 
 ---
 
@@ -209,7 +211,9 @@ pio device monitor -b 115200
 ├─ 逻辑层    alarm.h          告警锁存（阈值 + 回差）
 │            sensor_math.h    线性映射 / 钳位 / 分压换算
 ├─ 交互层    display.cpp      212×104 三色水墨屏（自定义 UC8151D SPI 驱动 + 点阵字库）
-├─ 网络层    network.cpp      WiFi 连接 + NTP 校时
+├─ 网络层    network.cpp      WiFi 连接 + NTP 校时（凭据来自 wifi_config，连接失败进 web_config 门户）
+│            wifi_config.cpp  WiFi 凭据 NVS 存取
+│            web_config.cpp   AP 网页配置门户（SoftAP + 捕获 DNS + WebServer）
 └─ 电源层    power.cpp        深度睡眠 + RTC 锁存
 ```
 
@@ -238,7 +242,7 @@ pio device monitor -b 115200
 ```
 ESP32-SoilMoistureMonitor/
 ├── include/
-│   └── config.h                 # 全部可配置参数（WiFi/阈值/校准/引脚）
+│   └── config.h                 # 可配置参数（阈值/校准/引脚；WiFi 凭据走门户）
 ├── lib/
 │   └── core/
 │       ├── alarm.h              # 告警锁存判定（头文件内联，纯逻辑可测试）
@@ -248,7 +252,9 @@ ESP32-SoilMoistureMonitor/
 │   ├── sensor.h / .cpp          # ADC 采集层
 │   ├── display.h / .cpp         # 水墨屏驱动（UC8151D 协议 + 旋转映射）
 │   ├── font.h                   # 内嵌中英文点阵字库
-│   ├── network.h / .cpp         # WiFi + NTP
+│   ├── network.h / .cpp         # WiFi 连接 + NTP
+│   ├── wifi_config.h / .cpp     # WiFi 凭据 NVS 存取
+│   ├── web_config.h / .cpp      # AP 网页配置门户
 │   └── power.h / .cpp           # 深度睡眠 + RTC 锁存
 ├── test/                        # 原生单元测试（Unity）
 │   ├── test_alarm/
@@ -295,3 +301,6 @@ pio test -e native
 | 设计规格 | [docs/superpowers/specs/2026-09-08-soil-moisture-monitor-design.md](docs/superpowers/specs/2026-09-08-soil-moisture-monitor-design.md) |
 | 实现计划 | [docs/superpowers/plans/2026-09-08-soil-moisture-monitor.md](docs/superpowers/plans/2026-09-08-soil-moisture-monitor.md) |
 | 开发台账 | [.superpowers/sdd/2026-09-08-soil-moisture-monitor/progress.md](.superpowers/sdd/2026-09-08-soil-moisture-monitor/progress.md) |
+| 设计规格（WiFi 配置门户） | [docs/superpowers/specs/2026-09-20-wifi-config-portal-design.md](docs/superpowers/specs/2026-09-20-wifi-config-portal-design.md) |
+| 实现计划（WiFi 配置门户） | [docs/superpowers/plans/2026-09-20-wifi-config-portal.md](docs/superpowers/plans/2026-09-20-wifi-config-portal.md) |
+| 开发台账（WiFi 配置门户） | [.superpowers/sdd/2026-09-20-wifi-config-portal/progress.md](.superpowers/sdd/2026-09-20-wifi-config-portal/progress.md) |
