@@ -8,7 +8,7 @@ namespace display {
 
 enum : uint8_t { C_WHITE, C_RED, C_BLACK };
 
-// 帧缓冲：black 1=白 0=黑；red 1=红 0=无（发送时对 red 取反）
+// 帧缓冲：black 1=白 0=黑；red 1=红 0=无（红数据直接发送：1=红）
 static uint8_t g_black[EPD_BUF_SIZE];
 static uint8_t g_red[EPD_BUF_SIZE];
 
@@ -111,17 +111,54 @@ static int textWidth(const char* s) {
     }
     return w;
 }
-static void drawTextCentered(const char* s, int16_t y, uint8_t color) {
-    drawText(s, (EPD_WIDTH - textWidth(s)) / 2, y, color);
+static int16_t drawLabeled(const char* label, int16_t x, int16_t y, uint8_t color) {
+    drawText(label, x, y, color);
+    return x + textWidth(label);
 }
-static void drawAsciiStringScaled(const char* s, int16_t y, uint8_t color, uint8_t scale) {
-    int w = (int)strlen(s) * 8 * scale;
-    int16_t x = (EPD_WIDTH - w) / 2;
+static void drawAsciiStringScaledAt(const char* s, int16_t x, int16_t y, uint8_t color, uint8_t scale) {
     while (*s) { drawAsciiScaled(*s, x, y, color, scale); x += 8 * scale; s++; }
 }
 static void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint8_t color) {
     for (int16_t yy = y; yy < y + h; yy++)
         for (int16_t xx = x; xx < x + w; xx++) drawPixel(xx, yy, color);
+}
+static void fillCircle(int16_t cx, int16_t cy, int16_t r, uint8_t color) {
+    for (int16_t dy = -r; dy <= r; dy++)
+        for (int16_t dx = -r; dx <= r; dx++)
+            if (dx * dx + dy * dy <= r * r) drawPixel(cx + dx, cy + dy, color);
+}
+static void drawCircle(int16_t cx, int16_t cy, int16_t r, uint8_t color) {
+    int16_t x = r, y = 0, err = 1 - r;
+    while (x >= y) {
+        drawPixel(cx + x, cy + y, color);
+        drawPixel(cx + y, cy + x, color);
+        drawPixel(cx - y, cy + x, color);
+        drawPixel(cx - x, cy + y, color);
+        drawPixel(cx - x, cy - y, color);
+        drawPixel(cx - y, cy - x, color);
+        drawPixel(cx + y, cy - x, color);
+        drawPixel(cx + x, cy - y, color);
+        y++;
+        if (err < 0) { err += 2 * y + 1; }
+        else { x--; err += 2 * (y - x) + 1; }
+    }
+}
+// 竖向湿度计（温度计样式）：球泡常满，管内液柱高度=湿度%；正常黑、需浇水红
+static void drawMoistureGauge(uint8_t moisture, uint8_t color) {
+    const int16_t cx = 188;         // 温度计中心 X
+    const int16_t yTop = 8;         // 竖管顶部
+    const int16_t liqBottom = 76;   // 液柱底部（球泡内芯顶）
+    const int16_t liqH = liqBottom - yTop;
+    int16_t h = (int16_t)((int32_t)(moisture > 100 ? 100 : moisture) * liqH / 100);
+
+    fillCircle(cx, 86, 10, color);                             // 球泡内芯液体
+    if (h > 0) fillRect(cx - 4, liqBottom - h, 8, h, color);   // 管内液柱
+
+    drawCircle(cx, 86, 12, C_BLACK);                           // 球泡外圈(2px)
+    drawCircle(cx, 86, 11, C_BLACK);
+    fillRect(cx - 6, yTop, 2, liqH, C_BLACK);                  // 左管壁
+    fillRect(cx + 4, yTop, 2, liqH, C_BLACK);                  // 右管壁
+    fillRect(cx - 6, yTop, 12, 2, C_BLACK);                    // 管顶封口
 }
 
 // ---------- 面板驱动 ----------
@@ -157,10 +194,10 @@ static void sendToPanel() {
     for (uint16_t i = 0; i < sizeof(g_black); i++) SPI.transfer(g_black[i]);
     digitalWrite(EPD_CS_PIN, HIGH);
 
-    writeCmd(0x13);  // 红数据（取反）
+    writeCmd(0x13);  // 红数据（1=红，直接发送）
     digitalWrite(EPD_DC_PIN, HIGH);
     digitalWrite(EPD_CS_PIN, LOW);
-    for (uint16_t i = 0; i < sizeof(g_red); i++) SPI.transfer((uint8_t)~g_red[i]);
+    for (uint16_t i = 0; i < sizeof(g_red); i++) SPI.transfer(g_red[i]);
     digitalWrite(EPD_CS_PIN, HIGH);
 
     writeCmd(0x12);  // 全局刷新
@@ -171,19 +208,27 @@ static void sendToPanel() {
 void render(const sensor::SoilReading &r, float vbat, bool alarm, const char* timeStr) {
     clearBuffer();
 
-    // 横向 212×104 布局
-    drawTextCentered(DISPLAY_TITLE, 4, C_BLACK);                       // 标题
+    char buf[32];
+    int16_t x;
 
-    char buf[24];
+    // 左侧：时间 / 湿度 / 电压 / 提示
+    x = drawLabeled("时间:", 4, 6, C_BLACK);
+    snprintf(buf, sizeof(buf), "%s", timeStr);
+    drawText(buf, x, 6, C_BLACK);
+
+    x = drawLabeled("湿度:", 4, 34, C_BLACK);                            // 标签垂直居中于 2x 数值
     snprintf(buf, sizeof(buf), "%d%%", (int)(r.moisture + 0.5f));
-    drawAsciiStringScaled(buf, 28, C_BLACK, 2);                        // 湿度大字(2x)
+    drawAsciiStringScaledAt(buf, x, 26, C_BLACK, 2);                    // 湿度值 2x 放大
 
-    drawTextCentered(alarm ? "需要浇水" : "正常", 68, alarm ? C_RED : C_BLACK);  // 状态
-
-    drawText(timeStr, 4, 88, C_BLACK);                                 // 时间(左)
-
+    x = drawLabeled("电压:", 4, 64, C_BLACK);
     snprintf(buf, sizeof(buf), "%.2fV", vbat);
-    drawText(buf, EPD_WIDTH - 4 - textWidth(buf), 88, C_BLACK);        // 电压(右)
+    drawText(buf, x, 64, C_BLACK);
+
+    x = drawLabeled("提示:", 4, 86, C_BLACK);
+    drawText(alarm ? "需要浇水" : "正常", x, 86, alarm ? C_RED : C_BLACK);  // 状态值随告警变色
+
+    // 右侧：竖向湿度计（液柱高度=湿度，正常黑/需浇水红）
+    drawMoistureGauge((uint8_t)(r.moisture + 0.5f), alarm ? C_RED : C_BLACK);
 
     sendToPanel();
 }
