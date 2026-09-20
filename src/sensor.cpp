@@ -37,7 +37,9 @@ SoilReading readSoilMoisture() {
 float readBatteryVoltage() {
     uint16_t raw = readAdcRaw(BATTERY_ADC_PIN, SAMPLE_COUNT);
     float v = (float)raw / 4095.0f * 3.3f;   // 12 位 ADC，约 0-3.3V
-    return adcToBatteryVoltage(v, BATTERY_DIVIDER_RATIO);
+    float vbat = adcToBatteryVoltage(v, BATTERY_DIVIDER_RATIO);
+    Serial.printf("[sensor] 电池 ADC=%u 电压=%.2fV\n", raw, vbat);
+    return vbat;
 }
 
 } // namespace sensor

@@ -10,6 +10,7 @@ RTC_DATA_ATTR bool g_alarmLatched = false;
 
 void begin() {
     esp_sleep_enable_timer_wakeup((uint64_t)WAKE_INTERVAL_SEC * 1000000ULL);
+    Serial.printf("[power] 配置 RTC 定时唤醒: %d s\n", WAKE_INTERVAL_SEC);
 }
 
 void enterDeepSleep() {
