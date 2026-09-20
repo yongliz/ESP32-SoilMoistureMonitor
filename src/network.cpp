@@ -6,10 +6,10 @@
 
 namespace network {
 
-bool syncTime(int timeoutSec) {
-    Serial.printf("[net] 连接 WiFi: SSID=%s\n", WIFI_SSID);
+bool connect(const char* ssid, const char* pass, int timeoutSec) {
+    Serial.printf("[net] 连接 WiFi: SSID=%s\n", ssid);
     WiFi.mode(WIFI_STA);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    WiFi.begin(ssid, pass);
 
     unsigned long start = millis();
     while (WiFi.status() != WL_CONNECTED) {
@@ -23,7 +23,10 @@ bool syncTime(int timeoutSec) {
     Serial.printf("[net] WiFi 已连接: 用时=%lu ms IP=%s RSSI=%d dBm\n",
                   (unsigned long)(millis() - start),
                   WiFi.localIP().toString().c_str(), (int)WiFi.RSSI());
+    return true;
+}
 
+bool syncTime() {
     configTime(TZ_OFFSET_SEC, 0, NTP_SERVER, "ntp.aliyun.com");
 
     int retries = 0;
